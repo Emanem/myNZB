@@ -200,9 +200,9 @@ namespace {
 
 	class www_srv : public mt::Thread {
 		volatile bool			_run;
-		std::auto_ptr<Connection>	_srv;
+		std::unique_ptr<Connection>	_srv;
 	public:
-		www_srv() : _run(true), _srv(0) {
+		www_srv() : _run(true), _srv(nullptr) {
 		}
 
 		virtual void run(void);
@@ -365,12 +365,12 @@ namespace {
 	// the run method has to be written after
 	void www_srv::run(void) {
 		try {
-			_srv = std::auto_ptr<Connection>(new Connection(settings::WWW_PORT));
+			_srv = std::unique_ptr<Connection>(new Connection(settings::WWW_PORT));
 			// we do a monothread http req/res handling,
 			// we don't expect a lot of HTTP connections...
 			_srv->RecvTmOut(250);
 			while(_run) {
-				std::auto_ptr<Connection> c(_srv->Accept());
+				std::unique_ptr<Connection> c(_srv->Accept());
 				if (!_run || !c.get()) break;
 				LOG_INFO << "(www server) : new connection from " << c->GetHost() << std::endl;
 				// read the request

@@ -396,15 +396,15 @@ bool fetch_nzb_segment(const std::set<std::string>& groups, const std::string& i
 		Connection			*c = NULL;
 		// these containers are to hold the connection
 		// handles (or local or from the manager)
-		std::auto_ptr<Connection>	_conn_holder(0);
-		ConnMgr::AP_ConnHandle 		_manager_conn_holder(0);
+		std::unique_ptr<Connection>	_conn_holder;
+		ConnMgr::AP_ConnHandle 		_manager_conn_holder;
 
 		if (settings::USE_CONN_POOL) {
 			_manager_conn_holder = ConnMgr::Instance().GetHandle();
 			if (0== _manager_conn_holder.get()) throw std::runtime_error("No connections available");
 			c = _manager_conn_holder->get();
 		} else {
-			_conn_holder = std::auto_ptr<Connection>(new Connection(settings::NNTP_server, settings::NNTP_port, settings::USE_SSL));
+			_conn_holder = std::unique_ptr<Connection>(new Connection(settings::NNTP_server, settings::NNTP_port, settings::USE_SSL));
 			c = _conn_holder.get();
 		}
 		// set recv tmout

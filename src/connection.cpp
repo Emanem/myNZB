@@ -149,7 +149,7 @@ _recvData(0)
 		throw std::runtime_error("Can't connect socket!");
 	}
 
-	if(useSSL) _ssl = std::auto_ptr<sslInfo>(new sslInfo(_sd));
+	if(useSSL) _ssl = std::unique_ptr<sslInfo>(new sslInfo(_sd));
 }
 
 Connection::Connection(const std::string& address, unsigned short port, const bool useSSL) :
@@ -198,7 +198,7 @@ _recvData(0)
 		throw std::runtime_error("Can't connect socket!");
 	}
 
-	if(useSSL) _ssl = std::auto_ptr<sslInfo>(new sslInfo(_sd));
+	if(useSSL) _ssl = std::unique_ptr<sslInfo>(new sslInfo(_sd));
 }
 
 Connection::Connection(unsigned short port) :

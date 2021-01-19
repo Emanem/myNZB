@@ -82,7 +82,7 @@ public:
 		}
 	};
 
-	typedef std::auto_ptr<ConnHandle>	AP_ConnHandle;
+	typedef std::unique_ptr<ConnHandle>	AP_ConnHandle;
 	
 	static ConnMgr& Instance(void) {
 		static ConnMgr _c(settings::NNTP_max_conn);
@@ -128,7 +128,7 @@ public:
 			std::vector<SP_ConnData>::reverse_iterator last = _vec_conn.rbegin();
 			return AP_ConnHandle(new ConnHandle((*last)->conn.get(), (*last)->in_use, (*last)->already_used, _mtx));
 		}
-		return AP_ConnHandle(0);
+		return AP_ConnHandle(nullptr);
 	}
 
 	~ConnMgr() {

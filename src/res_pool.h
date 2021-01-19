@@ -73,7 +73,7 @@ public:
 		}
 	};
 
-	typedef std::auto_ptr<handle>	AP_handle;
+	typedef std::unique_ptr<handle>	AP_handle;
 	
 	static res_pool<T>& Instance(void) {
 		static res_pool<T> _r;

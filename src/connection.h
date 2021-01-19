@@ -32,13 +32,13 @@ typedef int	SOCKET;
 struct sslInfo;
 
 class Connection {
-	SOCKET			_sd;
-	unsigned int		_ip;
-	unsigned short		_port;
-	std::string		_host;
-	unsigned int		_sentData,
-				_recvData;
-	std::auto_ptr<sslInfo>	_ssl;
+	SOCKET				_sd;
+	unsigned int			_ip;
+	unsigned short			_port;
+	std::string			_host;
+	unsigned int			_sentData,
+					_recvData;
+	std::unique_ptr<sslInfo>	_ssl;
 
 	std::string GetStringIp(void);
 	//
