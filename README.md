@@ -72,7 +72,7 @@ Requires following dev libraries to be installed: `ssl`, `xml2` and `crypto`.
   - ADD usage of SSL conections (and verification) through openssl
 * _0.2.4_
   - ADD ability to save files in subdirectories
-  - FIX (www.cpp) web server now uses password instead of directory
+  - FIX web server now uses password instead of directory
 * _0.2.3_
   - ADD ability to skip par files
   - ADD memory manager to optimize mem allocation for buffers
