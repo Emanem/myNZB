@@ -28,6 +28,8 @@
 #include <memory>
 #include <set>
 #include <sys/types.h>
+#include <sys/stat.h>
+#include <dirent.h>
 #include <unistd.h>
 #include "utils.h"
 #include "connection.h"
@@ -231,7 +233,7 @@ static void fetch_cmd(Connection& c, const std::string& r, std::vector<char>& bu
 	}
 }
 
-static void fetch_head(Connection& c, const std::string& r, std::vector<char>& buf, int *p_bytes, int *p_lines) {
+static void fetch_head(Connection& c, const std::string& r, std::vector<char>& buf, int *p_bytes, int *p_lines, const bool skip_yenc_check) {
 	static const char	*CRLF = "\r\n",
 				*HEAD_TERM = "\r\n.\r\n";
 
@@ -242,7 +244,7 @@ static void fetch_head(Connection& c, const std::string& r, std::vector<char>& b
 	// if code is 480 you have to authenticate
 	if (!memcmp(&buf[0], "480 ", sizeof(char)*4)) {
 		auth(c, buf);
-		return fetch_head(c, r, buf, p_bytes, p_lines);
+		return fetch_head(c, r, buf, p_bytes, p_lines, skip_yenc_check);
 	}
 	// if the code is not 2xx then is error
 	if ('2' != buf[0]) {
@@ -253,18 +255,21 @@ static void fetch_head(Connection& c, const std::string& r, std::vector<char>& b
 	// all to lowercase
 	for(int i =0; i < head_size; ++i) 
 		buf[i] = tolower(buf[i]);
-	if (settings::NNTP_strict_yenc) {
-		// try to get yEnc on subject line
-		const char *p_subject = strstr(&buf[0], "subject:");
-		if (!p_subject) throw std::runtime_error("NNTP 'Subject:' field not present");
-		else {
-			const char 	*next_line = strstr(p_subject, CRLF),
-					*yenc_token = strstr(p_subject, "yenc");
-			if (!next_line) throw std::runtime_error("NNTP 'Subject:' field malformed");
-			if (!yenc_token || yenc_token > next_line) throw std::runtime_error("NNTP 'Subject:' not yEnc encoded (strict)");
+	// only check yenc if somehow is not specified in the file/subject element
+	if(!skip_yenc_check || settings::NNTP_strict_yenc) {
+		if (settings::NNTP_strict_yenc) {
+			// try to get yEnc on subject line
+			const char *p_subject = strstr(&buf[0], "subject:");
+			if (!p_subject) throw std::runtime_error("NNTP 'Subject:' field not present");
+			else {
+				const char 	*next_line = strstr(p_subject, CRLF),
+						*yenc_token = strstr(p_subject, "yenc");
+				if (!next_line) throw std::runtime_error("NNTP 'Subject:' field malformed");
+				if (!yenc_token || yenc_token > next_line) throw std::runtime_error("NNTP 'Subject:' not yEnc encoded (strict)");
+			}
+		} else {
+			if (!strstr(&buf[0], "yenc")) throw std::runtime_error("NNTP not yEnc encoded (loose)");
 		}
-	} else {
-		if (!strstr(&buf[0], "yenc")) throw std::runtime_error("NNTP not yEnc encoded (loose)");
 	}
 	// try to get "bytes:"
 	if (p_bytes) {
@@ -386,7 +391,7 @@ static void fetch_body(Connection& c, const std::string& r, bstream *filedata, c
 	throw std::runtime_error("News article is too big (>= 16MB)");
 }
 
-bool fetch_nzb_segment(const std::set<std::string>& groups, const std::string& id, bstream *filedata, std::string *err) throw() {
+static bool fetch_nzb_segment(const std::set<std::string>& groups, const std::string& id, bstream *filedata, std::string *err, const bool skip_yenc_check) throw() {
 	try {
 		const static unsigned int	R_BUF_SIZE = 16*1024;
 		const std::string		N_MODE_READER = "MODE READER",
@@ -437,7 +442,7 @@ bool fetch_nzb_segment(const std::set<std::string>& groups, const std::string& i
 			}
 		}
 		// get head...
-		fetch_head(*c, N_HEAD, buf, &i_bytes, &i_lines);
+		fetch_head(*c, N_HEAD, buf, &i_bytes, &i_lines, skip_yenc_check);
 		// ...and get the body
 		fetch_body(*c, N_BODY, filedata, i_bytes, i_lines);
 
@@ -453,16 +458,58 @@ bool fetch_nzb_segment(const std::set<std::string>& groups, const std::string& i
 	return false;
 }
 
+static std::string get_filename(const std::string& seg_name) {
+	std::string rv;
+	const char	*b_dq = strchr(seg_name.c_str(), '"'),
+			*e_dq = b_dq ? strchr(b_dq+1, '"') : 0;
+	if(b_dq && e_dq) {
+		rv = std::string(b_dq+1, e_dq);
+	}
+	return rv;
+}
+
+static std::string get_latest_yydecoded(const std::string& dir, const std::string& tgt_f_name) {
+	std::string rv;
+	DIR* d = opendir(dir.c_str());
+	if(d) {
+		struct dirent * de = NULL;
+		time_t		latest_mtime = 0;
+		while ((de = readdir(d))) {
+			if (de->d_type == DT_REG) {
+				// in this case, the target file name already exists... just leave
+				// and return...
+				if(tgt_f_name == de->d_name) {
+					closedir(d);
+					return "";
+				}
+				struct stat	st = {0};
+				if(lstat((dir + '/' + de->d_name).c_str(), &st))
+					continue;
+				if(!latest_mtime) {
+					rv = de->d_name;
+					latest_mtime = st.st_mtime;
+				} else if (latest_mtime < st.st_mtime) {
+					rv = de->d_name;
+					latest_mtime = st.st_mtime;
+				}
+			}
+		}
+		closedir(d);
+	}
+	return rv;
+}
+
 class seg_job : public mt::ThreadPool::Job {
 	bool&				_is_ok;
 	std::string&			_err;
 	const std::string&		_id;
 	bstream				*_filedata;
+	const bool			_skip_yenc_check;
 	const std::set<std::string>&	_groups;
 	const int			_seg_id;
 public:
-	seg_job(const std::set<std::string>& groups, const std::string& id, bstream *filedata, bool& is_ok, std::string& err, const int& seg_id) : 
-	_is_ok(is_ok), _err(err), _id(id), _filedata(filedata), _groups(groups), _seg_id(seg_id) {
+	seg_job(const bool skip_yenc_check, const std::set<std::string>& groups, const std::string& id, bstream *filedata, bool& is_ok, std::string& err, const int& seg_id) : 
+	_is_ok(is_ok), _err(err), _id(id), _filedata(filedata), _skip_yenc_check(skip_yenc_check), _groups(groups), _seg_id(seg_id) {
 	}
 
 	virtual void run(void) {
@@ -473,7 +520,7 @@ public:
 			nanosleep(&ts, NULL);
 		}
 		www::progress_set(_seg_id, www::S_DL);
-		if (fetch_nzb_segment(_groups, _id, _filedata, &_err)) {
+		if (fetch_nzb_segment(_groups, _id, _filedata, &_err, _skip_yenc_check)) {
 			_is_ok=true;
 			LOG_INFO << "\tOk [" << _seg_id << "] " << _id << std::endl;
 			www::progress_set(_seg_id, www::S_OK);
@@ -536,7 +583,7 @@ void init_nzb_struct(void) {
 	}
 }
 
-bool fetch_nzb_file(const std::set<std::string>& groups, const std::vector<std::string>& vec_id, const std::string& outdir, const bool& tmp_files) {
+bool fetch_nzb_file(const std::string& seg_name, const std::set<std::string>& groups, const std::vector<std::string>& vec_id, const std::string& outdir, const bool& tmp_files) {
 	// check at the beginning of the function
 	sig::test_raised();
 
@@ -545,6 +592,7 @@ bool fetch_nzb_file(const std::set<std::string>& groups, const std::vector<std::
 	std::vector<job_info>		vec_job_info(n_seg);
 	mt::ThreadPool			tp(settings::NNTP_max_conn);
 	const std::string		f_name_base = settings::TMP_DIR + ".myNZB.tmp." + XtoS(getpid()) + "." + XtoS(rand());
+	const bool			is_seg_yenc = strcasestr(seg_name.c_str(), "yenc");
 
 	LOG_INFO << "Downloading (groups " << *groups.begin() << ") segments:" << std::endl;
 	for(int i=0; i < n_seg; ++i) {
@@ -555,7 +603,7 @@ bool fetch_nzb_file(const std::set<std::string>& groups, const std::vector<std::
 		} else {
 			vec_job_info[i].filedata = new m_bstream();
 		}
-		vec_job_info[i].job = new seg_job(groups, vec_id[i], vec_job_info[i].filedata->rewind(), vec_job_info[i].is_ok, vec_job_info[i].err, i);
+		vec_job_info[i].job = new seg_job(is_seg_yenc, groups, vec_id[i], vec_job_info[i].filedata->rewind(), vec_job_info[i].is_ok, vec_job_info[i].err, i);
 		tp.add(vec_job_info[i].job.get());
 		LOG_INFO << "\t" << vec_id[i] << " (" << vec_job_info[i].filedata->id() << ")" << std::endl;
 	}
@@ -592,7 +640,7 @@ bool fetch_nzb_file(const std::set<std::string>& groups, const std::vector<std::
 				if (!vec_job_info[i].is_ok) {
 					LOG_INFO << "Re fetching segment " << vec_id[i] << " ... " << std::endl;
 					for(int j=0; j < settings::MAX_SEG_RETRY; ++j) {
-						vec_job_info[i].is_ok = fetch_nzb_segment(groups, vec_id[i], vec_job_info[i].filedata->rewind(), &vec_job_info[i].err);
+						vec_job_info[i].is_ok = fetch_nzb_segment(groups, vec_id[i], vec_job_info[i].filedata->rewind(), &vec_job_info[i].err, is_seg_yenc);
 						if(vec_job_info[i].is_ok) {
 							www::progress_set(i, www::S_OK);
 							break;
@@ -633,6 +681,19 @@ bool fetch_nzb_file(const std::set<std::string>& groups, const std::vector<std::
 	if (!yDec(big_file, outdir)) {
 		LOG_ERROR << "yydecode failed on file \"" << big_file << "\"" << std::endl;
 		return false;
+	}
+	// if we have a file name in the segment, try to rename the latest yydecoded file
+	// as per such name
+	const std::string	f_name = get_filename(seg_name);
+	if(!f_name.empty()) {
+		const std::string	l_yydecoded = get_latest_yydecoded(outdir, f_name);
+		if(!l_yydecoded.empty() && (l_yydecoded != f_name)) {
+			if(rename((outdir + '/' + l_yydecoded).c_str(), (outdir + '/' + f_name).c_str())) {
+				LOG_WARNING << "Couldn't rename from '" << l_yydecoded << "' to '" << f_name << "' inside '" << outdir << "' - rename() failure. Manual intervention required" << std::endl;
+			}
+		} else if(l_yydecoded.empty()) {
+			LOG_WARNING << "Couldn't rename/find latest yydecoded file to '" << f_name << "' inside '" << outdir << "' - bad names. Manual intervention required" << std::endl;
+		}
 	}
 	return true;
 }

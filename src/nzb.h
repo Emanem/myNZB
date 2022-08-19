@@ -25,7 +25,7 @@
 #include <set>
 
 extern void init_nzb_struct(void);
-extern bool fetch_nzb_file(const std::set<std::string>& groups, const std::vector<std::string>& vec_id, const std::string& outdir, const bool& tmp_files = false);
+extern bool fetch_nzb_file(const std::string& seg_name, const std::set<std::string>& groups, const std::vector<std::string>& vec_id, const std::string& outdir, const bool& tmp_files = false);
 
 #endif /*_NZB_H_*/
 

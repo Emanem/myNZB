@@ -342,7 +342,7 @@ int main(int argc, char *argv[]) {
 				notify::message(__myNZB__ + " - Downloading [" + curr_part + "] ...", it->seg_name);
 				www::update(cur_nzb, curr_part);
 				www::progress_reset(cur_nzb, it->segments.size());
-				if(fetch_nzb_file(it->groups, it->segments, outdir, settings::TEMPORARY_FILES)) {
+				if(fetch_nzb_file(it->seg_name, it->groups, it->segments, outdir, settings::TEMPORARY_FILES)) {
 					LOG_INFO << "Done (" << it->seg_name << ") [" << curr_part << "]" << std::endl;
 					notify::message(__myNZB__ + " - Ok [" + curr_part + "]", it->seg_name);
 				} else {
