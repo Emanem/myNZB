@@ -1,5 +1,5 @@
 /*
-*	myNZB (C) 2009 E. Oriani, ema <AT> fastwebnet <DOT> it
+*	myNZB (C) 2009-2022 E. Oriani, ema <AT> fastwebnet <DOT> it
 *
 *	This file is part of myNZB.
 *
@@ -41,7 +41,7 @@
 #include "www.h"
 
 const static std::string	__myNZB__ = "myNZB",
-				__version__ = "0.3.0";
+				__version__ = "0.3.1";
 
 const static int		__UID__ = geteuid(),
 				__GID__ = getegid();
@@ -63,7 +63,7 @@ const static int		__UID__ = geteuid(),
 #define IS_F_RX(x, ud, gd)	(IS_U_RX(x, ud) || (((int)ud!=__UID__) && (IS_G_RX(x, gd) || (((int)gd!=__GID__) && IS_O_RX(x)))))
 
 void print_version(void) {
-	std::cerr <<	__myNZB__ << " v" << __version__ << " - (C) 2009-2011 E. Oriani\n"
+	std::cerr <<	__myNZB__ << " v" << __version__ << " - (C) 2009-2022 E. Oriani\n"
 		  <<	std::flush;
 }
 

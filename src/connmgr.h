@@ -1,5 +1,5 @@
 /*
-*	myNZB (C) 2009 E. Oriani, ema <AT> fastwebnet <DOT> it
+*	myNZB (C) 2009-2022 E. Oriani, ema <AT> fastwebnet <DOT> it
 *
 *	This file is part of myNZB.
 *
