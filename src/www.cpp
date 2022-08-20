@@ -403,10 +403,12 @@ namespace {
 					std::string sid;
 					// if pass is empty or sid is ok then report the webpage
 					if ((settings::WWW_PASS == "") || f_status_hndl::Instance().check_sid_http(&buf[0], sid)) {
-						if (http_path == "/") {
+						if (http_path == "/" || http_path == "/?") {
 							std::string response;
 							f_status_hndl::Instance().get_status_html(response, sid);
 							c->SendAll(&response[0], response.length());
+						} else {
+							LOG_WARNING << "(www server) : unexpected http_path: " << http_path << std::endl;
 						}
 					} else {
 						std::string response;

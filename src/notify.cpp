@@ -118,7 +118,7 @@ void notify::init(void) {
 	libnotify_ldr::Instance();
 }
 
-void notify::message(const std::string& title, const std::string& msg) {
-	libnotify_ldr::Instance().message(title, msg);
+void notify::message(const std::string& title, const std::string& msg, const int& tmout) {
+	libnotify_ldr::Instance().message(title, msg, tmout);
 }
 

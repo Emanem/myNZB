@@ -25,7 +25,7 @@
 namespace notify {
 
 extern void init(void);
-extern void message(const std::string& title, const std::string& msg);
+extern void message(const std::string& title, const std::string& msg, const int& tmout = -1);
 
 }
 

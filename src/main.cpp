@@ -344,7 +344,7 @@ int main(int argc, char *argv[]) {
 				www::progress_reset(cur_nzb, it->segments.size());
 				if(fetch_nzb_file(it->seg_name, it->groups, it->segments, outdir, settings::TEMPORARY_FILES)) {
 					LOG_INFO << "Done (" << it->seg_name << ") [" << curr_part << "]" << std::endl;
-					notify::message(__myNZB__ + " - Ok [" + curr_part + "]", it->seg_name);
+					notify::message(__myNZB__ + " - Ok [" + curr_part + "]", it->seg_name, 3000);
 				} else {
 					LOG_ERROR << "Error (" << it->seg_name << ") [" << curr_part << "]" << std::endl;
 					notify::message(__myNZB__ + " - Error [" + curr_part + "]", it->seg_name);
